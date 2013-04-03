@@ -5,19 +5,19 @@
 #
 #   !!WARNING!! - All drivers are expected to filter input before running
 #  anything based on it. This is particularly important in the case
-#  of the drivers which wrap a command line to provide functionality.  
+#  of the drivers which wrap a command line to provide functionality.
 #
 
 module Lab
 module Drivers
 class VmDriver
 
-  attr_accessor :vmid 
+  attr_accessor :vmid
   attr_accessor :location
   attr_accessor :os
   attr_accessor :tools
   attr_accessor :credentials
-  
+
   def initialize(config)
 
     @vmid = filter_command(config["vmid"].to_s)
@@ -42,7 +42,7 @@ class VmDriver
   def register
     raise "Command not Implemented"
   end
-    
+
   def unregister
     raise "Command not Implemented"
   end
@@ -83,14 +83,14 @@ class VmDriver
     raise "Command not Implemented"
   end
 
-  def run_command(command)  
+  def run_command(command)
     raise "Command not Implemented"
   end
-  
+
   def copy_from(from, to)
     raise "Command not Implemented"
   end
-  
+
   def copy_to(from, to)
     raise "Command not Implemented"
   end
@@ -137,9 +137,9 @@ private
         puts "DEBUG: uploading #{local} to #{remote}"
         scp.upload!(local,remote)
       end
-    end  
+    end
   end
-  
+
   def scp_from(remote, local)
     # download a file from a remote server
     if @vm_keyfile
@@ -155,7 +155,7 @@ private
       end
     end
   end
-  
+
   def ssh_exec(command)
     if @vm_keyfile
       #puts "DEBUG: authenticating to #{@hostname} as #{@vm_user} with key #{@vm_keyfile}"
@@ -173,8 +173,8 @@ private
   def filter_input(string)
     return "" unless string # nil becomes empty string
     return unless string.class == String # Allow other types unmodified
-    
-    unless /^[\d\w\s\[\]\{\}\/\\\.\-\"\(\):!]*$/.match string
+
+    unless /^[\:\d\w\s\[\]\{\}\/\\\.\-\"\(\):!]*$/.match string
       raise "WARNING! Invalid character in: #{string}"
     end
   string
@@ -182,9 +182,9 @@ private
 
   def filter_command(string)
     return "" unless string # nil becomes empty string
-    return unless string.class == String # Allow other types unmodified    
-    
-    unless /^[\d\w\s\[\]\{\}\/\\\.\-\"\(\)]*$/.match string
+    return unless string.class == String # Allow other types unmodified
+
+    unless /^[\:\d\w\s\[\]\{\}\/\\\.\-\"\(\)]*$/.match string
       raise "WARNING! Invalid character in: #{string}"
     end
   string

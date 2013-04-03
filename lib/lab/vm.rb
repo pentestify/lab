@@ -4,7 +4,7 @@
 
 module Lab
 class Vm
-  
+
   attr_accessor :vmid
   attr_accessor :hostname
   attr_accessor :description
@@ -38,17 +38,17 @@ class Vm
   ##    modifiers - can be anything in the modifiers directory
   ##    machine_tags - list of strings associated with the machine (not individual snapshots)
   ##    snapshots - list of snapshots
-  
-  def initialize(config = {})  
+
+  def initialize(config = {})
 
     # TODO - This is a mess. clean up, and pass stuff down to drivers
-    # and then rework the code that uses this api. 
-    @vmid = config['vmid'].to_s 
-    raise "Invalid VMID" unless @vmid
+    # and then rework the code that uses this api.
+    @vmid = config['vmid'].to_s
+    raise "Invalid VMID" unless @vmid and @vmid.strip.length > 0
 
     # Grab the hostname if specified, otherwise use the vmid
     # VMID will be different in the case of ESX
-    @hostname = config['hostname']
+    @hostname = config['hostname'] || config['name_label']
     if !@hostname
       @hostname = @vmid
     end
@@ -57,14 +57,14 @@ class Vm
     @driver_type.downcase!
 
     @location = filter_input(config['location'])
-    @description = config['description']
+    @description = config['description'] || config['name_description']
     @notes = config['notes']
     @tools = config['tools']
     @os = config['os']
     @arch = config['arch']
     @type = filter_input(config['type']) || "unspecified"
     @credentials = config['credentials'] || []
-    
+
     # TODO - Currently only implemented for the first set
     if @credentials.count > 0
       @vm_user = filter_input(@credentials[0]['user']) || "\'\'"
@@ -94,11 +94,13 @@ class Vm
     elsif @driver_type == "fog"
       @driver = Lab::Drivers::FogDriver.new(config, config['fog_config'])
     elsif @driver_type == "dynagen"
-      @driver = Lab::Drivers::DynagenDriver.new(config, config['dynagen_config'])  
+      @driver = Lab::Drivers::DynagenDriver.new(config, config['dynagen_config'])
     elsif @driver_type == "remote_esxi"
       @driver = Lab::Drivers::RemoteEsxiDriver.new(config)
     elsif @driver_type == "vsphere"
       @driver = Lab::Drivers::VsphereDriver.new(config)
+    elsif @driver_type == "xenapi"
+      @driver = Lab::Drivers::XenApiDriver.new(config)
     #elsif @driver_type == "qemu"
     #  @driver = Lab::Drivers::QemuDriver.new
     #elsif @driver_type == "qemudo"
@@ -106,22 +108,22 @@ class Vm
     else
       raise "Unknown Driver Type"
     end
-        
+
     # Load in a list of modifiers. These provide additional methods
-    # Currently it is up to the user to verify that 
+    # Currently it is up to the user to verify that
     # modifiers are properly used with the correct VM image.
     #
     # If not, the results are likely to be disasterous.
     @modifiers = config['modifiers']
-    
-    if @modifiers  
+
+    if @modifiers
       begin
          @modifiers.each { |modifier|  self.class.send(:include, eval("Lab::Modifier::#{modifier}"))}
       rescue Exception => e
         # modifier likely didn't exist
       end
     end
-    
+
     #
     # Grab a list of snapshots & tags associated with this machine
     #
@@ -151,7 +153,7 @@ class Vm
     @snapshots = config['snapshots']
 
   end
-  
+
   def running?
     @driver.running?
   end
@@ -175,15 +177,15 @@ class Vm
   def suspend
     @driver.suspend
   end
-  
+
   def reset
     @driver.reset
   end
-  
+
   def resume
     @driver.resume
   end
-  
+
   def query_snapshots
     @driver.query_snapshots
   end
@@ -208,11 +210,11 @@ class Vm
   def copy_to(from,to)
     @driver.copy_to(from,to)
   end
-  
+
   def copy_from(from,to)
     @driver.copy_from(from,to)
   end
-  
+
   def run_command(command)
     @driver.run_command(command)
   end
@@ -220,13 +222,13 @@ class Vm
   def check_file_exists(file)
     @driver.check_file_exists(file)
   end
-  
+
   def create_directory(directory)
     @driver.create_directory(directory)
   end
 
   def open_uri(uri)
-    # we don't filter the uri, as it's getting tossed into a script 
+    # we don't filter the uri, as it's getting tossed into a script
     # by the driver
     if @os == "windows"
       command = "\"C:\\program files\\internet explorer\\iexplore.exe\" #{uri}"
@@ -242,9 +244,9 @@ class Vm
   end
 
   def to_yaml
-    
+
     # TODO - push this down to the drivers.
-    
+
     # Standard configuration options
     out =  " - vmid: #{@vmid}\n"
     out += "   hostname: #{@hostname}\n"
@@ -255,7 +257,7 @@ class Vm
     out += "   tools: #{@tools}\n"
     out += "   os: #{@os}\n"
     out += "   arch: #{@arch}\n"
-    
+
     if @user or @host # Remote vm/drivers only
       out += "   user: #{@user}\n"
       out += "   host: #{@host}\n"
@@ -276,11 +278,11 @@ class Vm
     end
 
     out += "   credentials:\n"
-    @credentials.each do |credential|    
+    @credentials.each do |credential|
       out += "     - user: #{credential['user']}\n"
       out += "       pass: #{credential['pass']}\n"
     end
-  
+
      return out
   end
 private
@@ -288,7 +290,7 @@ private
   def filter_input(string)
     return "" unless string # nil becomes empty string
     return unless string.class == String # Allow other types
-          
+
     unless /^[(!)\d*\w*\s*\[\]\{\}\/\\\.\-\"\(\)]*$/.match string
       raise "WARNING! Invalid character in: #{string}"
     end
