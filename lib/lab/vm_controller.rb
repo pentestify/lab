@@ -1,8 +1,8 @@
 #
 # $Id$
 #
-# This is the main lab controller. Require this controller to get all 
-# lab functionality. 
+# This is the main lab controller. Require this controller to get all
+# lab functionality.
 #
 #
 
@@ -26,27 +26,28 @@ require 'net/ssh'
 
 module Lab
 module Controllers
-  class VmController 
+  class VmController
 
     include Enumerable
     include Lab::Controllers::WorkstationController
     include Lab::Controllers::RemoteWorkstationController
-    include Lab::Controllers::VirtualBoxController 
+    include Lab::Controllers::VirtualBoxController
     include Lab::Controllers::FogController
-    include Lab::Controllers::DynagenController 
+    include Lab::Controllers::DynagenController
     include Lab::Controllers::RemoteEsxiController
     include Lab::Controllers::VsphereController
-    #include Lab::Controllers::QemuController 
-    #include Lab::Controllers::QemudoController 
+    include Lab::Controllers::XenApiController
+    #include Lab::Controllers::QemuController
+    #include Lab::Controllers::QemudoController
     def initialize (labdef=nil)
 
       # Start with an empty array of vm objects
-      @vms = [] 
+      @vms = []
 
       # labdef is a just a big array of hashes
       load_vms(labdef) if labdef
     end
-    
+
     def clear!
       @vms = []
     end
@@ -73,7 +74,7 @@ module Controllers
 
     def find_by_tag(search)
       @vms.each do |vm|
-        vm.tags.each do |tag| 
+        vm.tags.each do |tag|
           return vm if tag == search
         end
       end
@@ -82,9 +83,9 @@ module Controllers
 
     def add_vm(vmid, location=nil, os=nil, tools=nil, credentials=nil, user=nil, host=nil)
       @vms << Vm.new( {
-        'vmid' => vmid, 
-        'driver' => type, 
-        'location' => location, 
+        'vmid' => vmid,
+        'driver' => type,
+        'location' => location,
         'credentials' => credentials,
         'user' => user,
         'host' => host
@@ -93,7 +94,7 @@ module Controllers
 
     def remove_by_vmid(vmid)
       @vms.delete(self.find_by_vmid(vmid))
-    end  
+    end
 
     def from_file(file)
       load_vms(YAML::load_file(file))
@@ -107,7 +108,7 @@ module Controllers
     end
 
     def to_file(file)
-      File.open(file, 'w') { |f| @vms.each { |vm| f.puts vm.to_yaml } } 
+      File.open(file, 'w') { |f| @vms.each { |vm| f.puts vm.to_yaml } }
     end
 
     def each &block
@@ -144,22 +145,24 @@ module Controllers
 
       if driver_type.downcase == "workstation"
         vm_list = ::Lab::Controllers::WorkstationController::dir_list(dir)
-      elsif driver_type.downcase == "remote_workstation"  
+      elsif driver_type.downcase == "remote_workstation"
         vm_list = ::Lab::Controllers::RemoteWorkstationController::dir_list(dir)
-      elsif driver_type.downcase == "virtualbox"  
+      elsif driver_type.downcase == "virtualbox"
         vm_list = ::Lab::Controllers::VirtualBoxController::dir_list(dir)
       elsif driver_type.downcase == "fog"
         vm_list = ::Lab::Controllers::FogController::dir_list(dir)
-      elsif driver_type.downcase == "Dynagen"  
+      elsif driver_type.downcase == "Dynagen"
         vm_list = ::Lab::Controllers::DynagenController::dir_list(dir)
       elsif driver_type.downcase == "remote_esxi"
         vm_list =::Lab::Controllers::RemoteEsxiController::dir_list(dir)
       elsif driver_type.downcase == "vsphere"
         vm_list =::Lab::Controllers::VsphereController::dir_list(dir)
+      elsif driver_type.downcase == "xenapi"
+	      vm_list =::Lab::Controllers::XenApiController::dir_list(dir)
       else
         raise TypeError, "Unsupported VM Type"
       end
-      
+
       vm_list.each_index do |index|
         @vms << Vm.new( {'vmid' => "vm_#{index}", 'driver' => driver_type, 'location' => vm_list[index]} )
       end
@@ -167,11 +170,11 @@ module Controllers
 
 
     #
-    # Builds a vm lab from all running vms. Handy for connecting and saving out 
+    # Builds a vm lab from all running vms. Handy for connecting and saving out
     # a config or just managing the currently running vms
     #
     def build_from_running(driver_type=nil, user=nil, host=nil, clear=false, pass=nil)
-    
+
       if clear
         @vms = []
       end
@@ -185,7 +188,7 @@ module Controllers
             # Add it to the vm list
             @vms << Vm.new({
               'vmid' => "vm_#{index}",
-              'driver' => driver_type, 
+              'driver' => driver_type,
               'location' => item
               })
           end
@@ -197,20 +200,20 @@ module Controllers
             # Add it to the VM list
             @vms << Vm.new({
               'vmid' => "vm_#{index}",
-              'driver' => driver_type, 
-              'location' => item, 
+              'driver' => driver_type,
+              'location' => item,
               'user' => user,
-              'host' => host 
+              'host' => host
               })
           end
         when :virtualbox
           vm_list = ::Lab::Controllers::VirtualBoxController::running_list
           vm_list.each do |item|
             # Add it to the vm list
-            @vms << Vm.new( {  
+            @vms << Vm.new( {
               'vmid' => "#{item}",
               'driver' => driver_type,
-              'location' => nil 
+              'location' => nil
               })
           end
         when :fog
@@ -220,31 +223,41 @@ module Controllers
         when :remote_esxi
           vm_list = ::Lab::Controllers::RemoteEsxiController::running_list(user,host)
           vm_list.each do |item|
-            @vms << Vm.new( {  
+            @vms << Vm.new( {
               'vmid' => "#{item[:id]}",
               'name' => "#{item[:name]}",
-              'driver' => driver_type, 
+              'driver' => driver_type,
               'user' => user,
-              'host' => host 
+              'host' => host
               })
           end
         when :vsphere
           vm_list = ::Lab::Controllers::VsphereController::running_list(user,host,pass)
           vm_list.each do |item|
-            @vms << Vm.new( {  
+            @vms << Vm.new( {
               'vmid' => "#{item[:id]}",
               'name' => "#{item[:name]}",
-              'driver' => driver_type, 
+              'driver' => driver_type,
               'user' => user,
               'host' => host,
               'pass' => pass
               })
           end
+        when :xenapi
+          vm_list = ::Lab::Controllers::XenApiController::running_list(user,host,pass)
+          vm_list.each do |item|
+            @vms << Vm.new( item.merge({
+              'driver' => driver_type,
+              'user' => user,
+              'host' => host,
+              'pass' => pass
+              }))
+          end
         else
           raise TypeError, "Unsupported VM Type"
         end
 
-    end  
+    end
 
     #
     # Applicable only to virtualbox. Reads the config file & parses / creates
@@ -258,28 +271,28 @@ module Controllers
       case driver_type.intern
         when :virtualbox
           vm_list = ::Lab::Controllers::VirtualBoxController::config_list
-          
+
           vm_list.each do |item|
             # Add it to the vm list
-            @vms << Vm.new( {  
+            @vms << Vm.new( {
               'vmid' => "#{item}",
-              'driver' => driver_type, 
-              'location' => nil, 
+              'driver' => driver_type,
+              'location' => nil,
               'user' => user,
               'host' => host } )
           end
-            
+
         else
           raise TypeError, "Unsupported VM Type"
         end
 
-    end  
+    end
 
     def running?(vmid)
       if includes_vmid?(vmid)
         return self.find_by_vmid(vmid).running?
       end
-      return false 
+      return false
     end
   end
 end
