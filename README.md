@@ -98,3 +98,4 @@ CREDITS:
 The lab gem is a collaborative effort, with lots of testing from the Metasploit community, and special thanks to: 
  - Joshua "kernelsmith" Smith - ESXi Support, Tons of fixes & testing
  - Hauke Mehrtens - VirtualBox Support
+ - "RageLtMan" - Xen Support
